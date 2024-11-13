@@ -17,10 +17,12 @@
 
 package org.apache.spark.sql.execution.benchmark
 
-import java.io.{File, FilenameFilter}
 import org.apache.spark.SparkFunSuite
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.test.SharedSparkSession
+
+import java.io.{File, FilenameFilter}
+import scala.collection.JavaConverters._
 
 class TPCDSDatagenSuite extends SparkFunSuite with SharedSparkSession {
 
@@ -28,16 +30,20 @@ class TPCDSDatagenSuite extends SparkFunSuite with SharedSparkSession {
     val outputTempDir = Utils.createTempDir()
     val tpcdsTables = new Tables(spark.sqlContext, 1)
     tpcdsTables.genData(
-      location = outputTempDir.getAbsolutePath,
-      format = "parquet",
-      overwrite = false,
-      partitionTables = false,
-      useDoubleForDecimal = false,
-      useStringForChar = false,
-      clusterByPartitionColumns = false,
-      filterOutNullPartitionValues = false,
-      tableFilter = Set.empty,
-      numPartitions = 4)
+      GenDataConfig(
+        outputTempDir.getAbsolutePath,
+        "parquet",
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        Set.empty,
+        4
+      )
+    )
 
     val tpcdsExpectedTables = Set(
       "call_center", "catalog_page", "catalog_returns", "catalog_sales", "customer",
