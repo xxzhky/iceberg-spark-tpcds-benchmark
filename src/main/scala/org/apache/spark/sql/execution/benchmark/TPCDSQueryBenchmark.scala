@@ -1,5 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.spark.sql.execution.benchmark
-
 
 import org.apache.spark.SparkConf
 import org.apache.spark.benchmark.Benchmark
@@ -36,7 +51,8 @@ object TPCDSQueryBenchmark extends SqlBasedBenchmark with Logging {
 
 
     SparkSession.builder.config(conf)
-      .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+      .config("spark.sql.extensions", "org.apache.iceberg.spark." +
+        "extensions.IcebergSparkSessionExtensions")
       .config("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
       .config("spark.sql.catalog.spark_catalog.type", "hive")
       .config("spark.sql.catalog.hadoop_prod", "org.apache.iceberg.spark.SparkCatalog")
@@ -50,13 +66,16 @@ object TPCDSQueryBenchmark extends SqlBasedBenchmark with Logging {
     "web_returns", "web_site", "reason", "call_center", "warehouse", "ship_mode", "income_band",
     "time_dim", "web_page")
 
-  def setupTables(dataLocation: String, iceberg: Boolean, createTempView: Boolean): Map[String, Long] = {
+  def setupTables(
+      dataLocation: String,
+      iceberg: Boolean,
+      createTempView: Boolean): Map[String, Long] = {
     tables.map { tableName =>
       if (createTempView) {
         val tablePath = s"$dataLocation/$tableName"
         if (iceberg) {
           val dataFrame = spark.read
-            .option("vectorization-enabled",true)
+            .option("vectorization-enabled", true)
             .format("iceberg").load(tablePath)
           dataFrame.createOrReplaceTempView(tableName)
         } else {
@@ -158,7 +177,7 @@ object TPCDSQueryBenchmark extends SqlBasedBenchmark with Logging {
         s"Empty queries to run. Bad query name filter: ${benchmarkArgs.queryFilter}")
     }
 
-    val tableSizes = setupTables(benchmarkArgs.dataLocation,benchmarkArgs.iceberg,
+    val tableSizes = setupTables(benchmarkArgs.dataLocation, benchmarkArgs.iceberg,
       createTempView = !benchmarkArgs.cboEnabled)
     if (benchmarkArgs.cboEnabled) {
       spark.sql(s"SET ${SQLConf.CBO_ENABLED.key}=true")

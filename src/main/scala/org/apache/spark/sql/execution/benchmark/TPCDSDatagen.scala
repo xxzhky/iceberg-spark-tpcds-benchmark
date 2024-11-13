@@ -17,17 +17,16 @@
 
 package org.apache.spark.sql.execution.benchmark
 
-import scala.sys.process._
-
-import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode, SparkSession, SQLContext}
+import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
+
+import scala.sys.process._
 
 /**
  * This class was copied from `spark-sql-perf` and modified slightly.
  */
 class Tables(sqlContext: SQLContext, scaleFactor: Int) extends Serializable {
-  import sqlContext.implicits._
 
   private def sparkContext = sqlContext.sparkContext
 
@@ -212,42 +211,32 @@ class Tables(sqlContext: SQLContext, scaleFactor: Int) extends Serializable {
     }
   }
 
-  def genData(
-      location: String,
-      format: String,
-      overwrite: Boolean,
-      iceberg: Boolean,
-      partitionTables: Boolean,
-      useDoubleForDecimal: Boolean,
-      useStringForChar: Boolean,
-      clusterByPartitionColumns: Boolean,
-      filterOutNullPartitionValues: Boolean,
-      tableFilter: Set[String] = Set.empty,
-      numPartitions: Int = 100): Unit = {
-    var tablesToBeGenerated = if (partitionTables) {
+  def genData(config: GenDataConfig): Unit = {
+    var tablesToBeGenerated = if (config.partitionTables) {
       tables
     } else {
       tables.map(_.nonPartitioned)
     }
 
-    if (tableFilter.nonEmpty) {
-      tablesToBeGenerated = tablesToBeGenerated.filter { case t => tableFilter.contains(t.name) }
+    if (config.tableFilter.nonEmpty) {
+      tablesToBeGenerated = tablesToBeGenerated
+        .filter { case t => config.tableFilter.contains(t.name) }
       if (tablesToBeGenerated.isEmpty) {
-        throw new RuntimeException("Bad table name filter: " + tableFilter)
+        throw new RuntimeException("Bad table name filter: " + config.tableFilter)
       }
     }
 
     val withSpecifiedDataType = {
       var tables = tablesToBeGenerated
-      if (useDoubleForDecimal) tables = tables.map(_.useDoubleForDecimal())
-      if (useStringForChar) tables = tables.map(_.useStringForChar())
+      if (config.useDoubleForDecimal) tables = tables.map(_.useDoubleForDecimal())
+      if (config.useStringForChar) tables = tables.map(_.useStringForChar())
       tables
     }
 
     withSpecifiedDataType.foreach { table =>
-      val tableLocation = s"$location/${table.name}"
-      table.genData(tableLocation, format, overwrite, iceberg, clusterByPartitionColumns,
-        filterOutNullPartitionValues, numPartitions)
+      val tableLocation = s"${config.location}/${table.name}"
+      table.genData(tableLocation, config.format, config.overwrite, config.iceberg,
+        config.clusterByPartitionColumns, config.filterOutNullPartitionValues, config.numPartitions)
     }
   }
 
@@ -819,7 +808,8 @@ object TPCDSDatagen {
 
     if (datagenArgs.iceberg) {
       sparkBuilder
-        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+        .config("spark.sql.extensions", "org.apache.iceberg.spark." +
+          "extensions.IcebergSparkSessionExtensions")
         .config("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
         .config("spark.sql.catalog.spark_catalog.type", "hive")
         .config("spark.sql.catalog.hadoop_prod", "org.apache.iceberg.spark.SparkCatalog")
@@ -832,17 +822,33 @@ object TPCDSDatagen {
 
     val tpcdsTables = new Tables(sparkSession.sqlContext, datagenArgs.scaleFactor.toInt)
     tpcdsTables.genData(
-      datagenArgs.outputLocation,
-      datagenArgs.format,
-      datagenArgs.overwrite,
-      datagenArgs.iceberg,
-      datagenArgs.partitionTables,
-      datagenArgs.useDoubleForDecimal,
-      datagenArgs.useStringForChar,
-      datagenArgs.clusterByPartitionColumns,
-      datagenArgs.filterOutNullPartitionValues,
-      datagenArgs.tableFilter,
-      datagenArgs.numPartitions.toInt)
+      GenDataConfig(
+        datagenArgs.outputLocation,
+        datagenArgs.format,
+        datagenArgs.overwrite,
+        datagenArgs.iceberg,
+        datagenArgs.partitionTables,
+        datagenArgs.useDoubleForDecimal,
+        datagenArgs.useStringForChar,
+        datagenArgs.clusterByPartitionColumns,
+        datagenArgs.filterOutNullPartitionValues,
+        datagenArgs.tableFilter,
+        datagenArgs.numPartitions.toInt
+      )
+    )
     sparkSession.stop()
   }
 }
+case class GenDataConfig(
+                          location: String,
+                          format: String,
+                          overwrite: Boolean,
+                          iceberg: Boolean,
+                          partitionTables: Boolean,
+                          useDoubleForDecimal: Boolean,
+                          useStringForChar: Boolean,
+                          clusterByPartitionColumns: Boolean,
+                          filterOutNullPartitionValues: Boolean,
+                          tableFilter: Set[String] = Set.empty,
+                          numPartitions: Int = 100
+                        )
